@@ -1,0 +1,13 @@
+{
+  "instance": {"id": "ocid1.instance.oc1.fixture", "compartmentId": "ocid1.compartment.oc1.fixture", "lifecycleState": "RUNNING"},
+  "attachments": [
+    {"instanceId": "ocid1.instance.oc1.fixture", "compartmentId": "ocid1.compartment.oc1.fixture", "vnicId": "ocid1.vnic.oc1.secondary", "lifecycleState": "ATTACHED"},
+    {"instanceId": "ocid1.instance.oc1.fixture", "compartmentId": "ocid1.compartment.oc1.fixture", "vnicId": "ocid1.vnic.oc1.primary", "lifecycleState": "ATTACHED"}
+  ],
+  "vnics": {
+    "ocid1.vnic.oc1.secondary": {"id": "ocid1.vnic.oc1.secondary", "isPrimary": false, "subnetId": "ocid1.subnet.oc1.fixture", "lifecycleState": "AVAILABLE"},
+    "ocid1.vnic.oc1.primary": {"id": "ocid1.vnic.oc1.primary", "isPrimary": true, "subnetId": "ocid1.subnet.oc1.fixture", "lifecycleState": "AVAILABLE"}
+  },
+  "subnet": {"id": "ocid1.subnet.oc1.fixture", "ipv6CidrBlocks": ["2001:db8:1::/64"]},
+  "objects": [{"id": "ocid1.ipv6.oc1.initial", "vnicId": "ocid1.vnic.oc1.primary", "lifecycleState": "AVAILABLE"}]
+}

@@ -16,8 +16,19 @@ class HttpClient
      * @throws ApiCallException
      * @throws JsonException|CurlException
      */
-    public static function getResponse(array $curlOptions): array
+    public static function getResponse(array $curlOptions, ?array &$responseHeaders = null): array
     {
+        $responseHeaders = [];
+        $curlOptions[CURLOPT_HEADERFUNCTION] = static function ($curl, string $line) use (&$responseHeaders): int {
+            if (preg_match('/^HTTP\//i', $line)) {
+                $responseHeaders = [];
+            } elseif (strpos($line, ':') !== false) {
+                [$name, $value] = explode(':', $line, 2);
+                $responseHeaders[strtolower(trim($name))] = trim($value);
+            }
+
+            return strlen($line);
+        };
         $curl = curl_init();
         curl_setopt_array($curl, $curlOptions);
 

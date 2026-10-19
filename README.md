@@ -105,8 +105,64 @@ The OCI launcher already requests the public IPv4 + initial IPv6 at launch time.
 is to make the tenant bootstrap and post-launch tooling capable of driving a VNIC up to OCI's documented
 IPv6 object ceiling of 32 per VNIC when that is useful for the workload.
 
-This repo does **not** currently claim to create 32 IPv6 objects during instance launch. That remains tracked
-as follow-up work, separate from the base dual-stack launch behavior.
+The separate post-launch command can expand the primary VNIC to a requested total of 1–32 IPv6 objects:
+
+```bash
+php scripts/expand-ipv6.php --instance-id ocid1.instance.oc1.REGION.INSTANCE --target 32 --label free-arm-core
+```
+
+Run this after the instance and its primary VNIC are available. It uses the PHP helper's local `.env`
+by default; `--env /path/to/tenant.env` selects another tenant. It never creates compute, IPv4 addresses,
+VCNs or subnets. The subnet must already have IPv6 enabled. If it has multiple IPv6 prefixes, pass
+`--ipv6-subnet-cidr PREFIX` to choose one of its existing prefixes. This command assigns OCI IPv6 address
+objects; guest OS address configuration and routing remain separate prerequisites.
+The selected file supplies all five OCI account/key fields; inherited exported `OCI_*` credentials are
+ignored so they cannot mix a previous tenant into this command. Missing fields stop before API requests.
+
+The command reads every inventory page and creates only the deficit. Provisioning, terminating and unknown
+states count toward the total; only confirmed `TERMINATED` objects are excluded. Rerun the same command
+after partial progress or a transient failure. “Object target reached” describes the counted object budget,
+including objects still provisioning or terminating; it does not assert usable guest networking.
+The command saves each creation intent before sending a POST, then
+reuses OCI's documented `opc-retry-token` and the exact body after an uncertain response. A pending intent
+older than 23 hours stops for manual reconciliation because OCI's retry guarantee expires after 24 hours.
+Reconcile the saved intent's display name against current primary-VNIC inventory before removing or
+repairing that intent; do not delete journals just to retry an uncertain operation.
+
+The private journal also retains every observed or successfully created object ID, bound to this instance
+and its primary VNIC. A later stale inventory list cannot erase that budget. Missing known IDs are checked
+with individual `GetIpv6` requests and removed only on an explicit `TERMINATED` response. A failed or 404
+lookup stops further creation for manual reconciliation; it does not treat an omitted object as deleted.
+The dashboard therefore labels this a counted object budget rather than an exact live address count.
+
+Private retry journals default to `$XDG_STATE_HOME/oci-arm-host-capacity/ipv6-expansion/`, or
+`$HOME/.local/state/oci-arm-host-capacity/ipv6-expansion/` (directory mode `0700`, files `0600`). Preserve them
+across restarts. `--state-dir` selects another private location outside the served repository; paths inside
+the repository are rejected because a web server running as the same user can read mode `0600` files.
+The live dashboard reads
+`public/ipv6-status.json`, which includes only labels, requested/current counts, status and observation time.
+Provider diagnostics stay on the local CLI. `--status-file` selects another snapshot location. Counts are
+the last observation, including confirmed create responses, rather than a continuous OCI inventory poll.
+
+The request contract follows Oracle's [CreateIpv6 API](https://docs.oracle.com/iaas/api/#/en/iaas/20160918/Ipv6/CreateIpv6)
+and current [official SDK implementation](https://github.com/oracle/oci-python-sdk/blob/master/src/oci/core/virtual_network_client.py):
+`POST /ipv6`, camelCase `vnicId`/`ipv6SubnetCidr`, and the documented `opc-retry-token` header.
+
+Tenant network creation remains separate follow-up work: the retry launcher still requires a prepared
+subnet and does not create or rebuild VCNs during capacity retries.
+
+Offline validation (PHP with curl and pcntl for the loopback transport fixture, plus Node):
+
+```bash
+php tests/ipv6-expansion.php
+php tests/ipv6-http-transport.php
+php tests/ipv6-cli.php
+node tests/ipv6-dashboard.cjs
+```
+
+The CLI fixture can also use an installed real phpdotenv parser with
+`IPV6_TEST_DOTENV_AUTOLOAD=/path/to/vendor/autoload.php php tests/ipv6-cli.php`; it deliberately exports
+conflicting dummy credentials and checks that only the selected fixture file supplies the account.
 
 ## Sync into AI Control Panel
 
