@@ -154,3 +154,14 @@ SPEED_UP_PER_CYCLE=20 # Speed up faster
 JITTER_MIN=-30
 JITTER_MAX=30
 ```
+
+## Offline launcher field checks
+
+The internal queue keeps twelve tab-separated fields, including empty optional
+image, subnet, availability-domain and fault-domain values. Both launcher passes
+retain those empty positions; malformed field counts are skipped before launch.
+The dashboard's tab-separated input format is unchanged.
+
+Run `python3 tests/instance-row-fields.py`. It tests the actual extracted launcher
+main function with synthetic rows and inert launch/lock/log/delay commands. It
+does not source the full launcher, load tenant configuration or call OCI.

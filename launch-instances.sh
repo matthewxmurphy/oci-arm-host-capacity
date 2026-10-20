@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright (c) 2026 Matthew X Murphy (https://MatthewxMurphy.com).
+# Product/support: https://builtnotbegged.com
+# SPDX-License-Identifier: MIT
 # OCI Instance Launcher with Smart Retry
 set -uo pipefail
 
@@ -386,6 +389,23 @@ load_instances_clean() {
     printf '%s\n' "${instances[@]}"
 }
 
+# Split literal tabs: IFS whitespace would collapse omitted image/subnet/AD fields.
+# Assign only the fixed twelve launcher fields; malformed rows never reach launch.
+decode_instance_row() {
+    local remaining=$1 field index=0
+    local values=()
+    while [[ "$remaining" == *$'\t'* ]]; do
+        values+=("${remaining%%$'\t'*}")
+        remaining="${remaining#*$'\t'}"
+    done
+    values+=("$remaining")
+    [ "${#values[@]}" -eq 12 ] || return 1
+    for field in name ocpus memory boot_size hostname assign_public_ip dual_stack shape image_id subnet_id availability_domains fault_domains; do
+        printf -v "$field" '%s' "${values[$index]}"
+        index=$((index + 1))
+    done
+}
+
 main() {
     acquire_lock
     trap release_lock EXIT
@@ -397,7 +417,8 @@ main() {
     load_instances_clean "$INSTANCES_DIR" > "$CONFIGS_FILE"
     cp "$CONFIGS_FILE" "$WEB_CONFIGS_FILE"
     
-    while IFS=$'\t' read -r name ocpus memory boot_size hostname assign_public_ip dual_stack shape image_id subnet_id availability_domains fault_domains; do
+    while IFS= read -r instance_row; do
+        decode_instance_row "$instance_row" || { log "ERROR: Invalid instance configuration row"; continue; }
         [ -z "$name" ] && continue
         local net_label="private"
         [ "$assign_public_ip" = "true" ] && net_label="public"
@@ -407,7 +428,8 @@ main() {
     
     local success_count=0 fail_count=0 rate_limit_count=0 cycle_start=$(date +%s) cycle_end=0
     
-    while IFS=$'\t' read -r name ocpus memory boot_size hostname assign_public_ip dual_stack shape image_id subnet_id availability_domains fault_domains; do
+    while IFS= read -r instance_row; do
+        decode_instance_row "$instance_row" || { log "ERROR: Invalid instance configuration row"; continue; }
         [ -z "$name" ] && continue
         
         local launched=false
