@@ -33,6 +33,7 @@ foreach (['label', 'env', 'state-dir', 'status-file', 'ipv6-subnet-cidr'] as $na
 }
 
 require_once $root . '/oci-arm-host-capacity-fixed/src/Ipv6Expansion.php';
+require_once $root . '/oci-arm-host-capacity-fixed/src/Ipv6StatePaths.php';
 
 /** Atomic snapshots, including the private intent written before every POST. */
 function ipv6WriteJson(string $path, array $data, int $mode): void
@@ -65,6 +66,10 @@ try {
     if ($stateDir === '') {
         throw new RuntimeException('Set --state-dir to a private directory outside the served repository.');
     }
+    $statePath = $stateDir . '/' . hash('sha256', $instanceId) . '.json';
+    $statusFile = $options['status-file'] ?? $root . '/public/ipv6-status.json';
+    // Refuse lock/schema collisions before creating state or loading credentials.
+    Hitrov\Ipv6StatePaths::assertSeparate($statePath, $statusFile);
     if (!is_dir($stateDir) && !mkdir($stateDir, 0700, true) && !is_dir($stateDir)) {
         throw new RuntimeException('Could not create private IPv6 state directory.');
     }
@@ -74,7 +79,6 @@ try {
         || strpos($canonicalState, $canonicalRoot . DIRECTORY_SEPARATOR) === 0) {
         throw new RuntimeException('Private IPv6 state must be outside the served repository.');
     }
-    $statePath = $stateDir . '/' . hash('sha256', $instanceId) . '.json';
     $lock = fopen($statePath . '.lock', 'c');
     if ($lock === false || !chmod($statePath . '.lock', 0600) || !flock($lock, LOCK_EX | LOCK_NB)) {
         throw new RuntimeException('An IPv6 expansion for this instance is already running or cannot be locked.');
@@ -134,7 +138,6 @@ try {
     if (!$locked) {
         throw new RuntimeException('No IPv6 status was published because the private operation lock was not acquired.');
     }
-    $statusFile = $options['status-file'] ?? $root . '/public/ipv6-status.json';
     if (!is_dir(dirname($statusFile)) && !mkdir(dirname($statusFile), 0755, true) && !is_dir(dirname($statusFile))) {
         throw new RuntimeException('Could not create IPv6 dashboard directory.');
     }
