@@ -9,7 +9,7 @@ mkdir($fixture . '/scripts', 0700, true);
 mkdir($fixture . '/oci-arm-host-capacity-fixed/src', 0700, true);
 mkdir($fixture . '/oci-arm-host-capacity-fixed/vendor', 0700, true);
 copy($root . '/scripts/expand-ipv6.php', $fixture . '/scripts/expand-ipv6.php');
-foreach (['Ipv6Expansion', 'OciConfig'] as $file) copy($root . '/oci-arm-host-capacity-fixed/src/' . $file . '.php', $fixture . '/oci-arm-host-capacity-fixed/src/' . $file . '.php');
+foreach (['Ipv6Expansion', 'Ipv6StatePaths', 'OciConfig'] as $file) copy($root . '/oci-arm-host-capacity-fixed/src/' . $file . '.php', $fixture . '/oci-arm-host-capacity-fixed/src/' . $file . '.php');
 copy(__DIR__ . '/fixtures/ipv6-expansion.json', $fixture . '/inventory.json');
 // Compare only hashes inside the disposable fixture; never write inherited
 // identity or proxy/CA values into its diagnostics.
@@ -77,11 +77,24 @@ function cliEnvironment(array $overrides = []): array
         'PIP_CERT', 'NODE_EXTRA_CA_CERTS', 'GRPC_DEFAULT_SSL_ROOTS_FILE_PATH', 'GIT_SSL_CAINFO', 'GIT_SSL_CAPATH', 'AWS_CA_BUNDLE'];
     $environment = [];
     foreach (getenv() as $name => $value) {
-        if (in_array($name, $keep, true) || stripos($name, 'proxy') !== false || strpos($name, 'CODEX_SANDBOX_') === 0) {
+        if (in_array($name, $keep, true) || strpos($name, 'CODEX_') === 0
+            || strpos($name, 'GRPC_') === 0
+            || preg_match('/proxy|cert|trust|_ca|ssl/i', $name)) {
             $environment[$name] = $value;
         }
     }
     return array_replace($environment, $overrides);
+}
+function cliProcessEnvironment(array $environment): array
+{
+    // proc_open skips keyed empty values; NAME= entries preserve their presence.
+    foreach ($environment as $name => $value) {
+        if ($value === '') {
+            unset($environment[$name]);
+            $environment[] = $name . '=';
+        }
+    }
+    return $environment;
 }
 function cliRun(string $fixture, string $target, bool $fail = false, ?string $stateDir = null): array
 {
@@ -90,7 +103,7 @@ function cliRun(string $fixture, string $target, bool $fail = false, ?string $st
     $environment = cliEnvironment(['OCI_REGION' => 'wrong-region', 'OCI_USER_ID' => 'wrong-user', 'OCI_TENANCY_ID' => 'wrong-tenancy',
         'OCI_KEY_FINGERPRINT' => 'wrong-fingerprint', 'OCI_PRIVATE_KEY_FILENAME' => '/wrong-inherited-key', 'IPV6_FIXTURE_CALLS' => $fixture . '/calls.jsonl', 'IPV6_FIXTURE_FAIL' => $fail ? '1' : '',
         'IPV6_TEST_DOTENV_AUTOLOAD' => (string)getenv('IPV6_TEST_DOTENV_AUTOLOAD')]);
-    $process = proc_open($command, [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']], $pipes, $fixture, $environment);
+    $process = proc_open($command, [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']], $pipes, $fixture, cliProcessEnvironment($environment));
     fclose($pipes[0]);
     $output = stream_get_contents($pipes[1]); fclose($pipes[1]);
     $error = stream_get_contents($pipes[2]); fclose($pipes[2]);
@@ -150,7 +163,7 @@ try {
     $address = stream_socket_get_name($socket, false); fclose($socket);
     $web = proc_open(array_merge(cliPhpCommand(), ['-S', $address, '-t', $fixture . '-site']),
         [['file', '/dev/null', 'r'], ['file', $fixture . '/web.log', 'w'], ['file', $fixture . '/web.log', 'a']], $pipes, $fixture,
-        cliEnvironment());
+        cliProcessEnvironment(cliEnvironment()));
     cliCheck(is_resource($web), 'Start loopback web fixture.');
     try {
         $httpCode = 0; $response = '';

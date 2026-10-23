@@ -144,6 +144,14 @@ The live dashboard reads
 Provider diagnostics stay on the local CLI. `--status-file` selects another snapshot location. Counts are
 the last observation, including confirmed create responses, rather than a continuous OCI inventory poll.
 
+The public snapshot and its lock must use different filesystem bindings from the current private journal
+and operation lock. A custom `--status-file` that aliases either private file is rejected before state
+creation, dependency loading or provider work; otherwise the CLI could wait on its own lock or mix public
+snapshot data with the retry journal. Existing relative paths and outside-repository directory symlinks
+remain supported, with existing aliases resolved before comparison. Unresolvable symbolic links require
+correction. This is local configuration admission, not a hostile-filesystem race or future case-folding
+guarantee. Default paths, modes and the sanitized snapshot schema are unchanged.
+
 The request contract follows Oracle's [CreateIpv6 API](https://docs.oracle.com/iaas/api/#/en/iaas/20160918/Ipv6/CreateIpv6)
 and current [official SDK implementation](https://github.com/oracle/oci-python-sdk/blob/master/src/oci/core/virtual_network_client.py):
 `POST /ipv6`, camelCase `vnicId`/`ipv6SubnetCidr`, and the documented `opc-retry-token` header.
@@ -157,6 +165,7 @@ Offline validation (PHP with curl and pcntl for the loopback transport fixture, 
 php tests/ipv6-expansion.php
 php tests/ipv6-http-transport.php
 php tests/ipv6-cli.php
+php tests/ipv6-state-paths.php
 node tests/ipv6-dashboard.cjs
 ```
 
