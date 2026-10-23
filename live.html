@@ -181,6 +181,11 @@ key_file=<path to your private keyfile>"></textarea>
             <h2>Tenant Statistics</h2>
             <div class="tenant-grid" id="tenant-grid"></div>
         </div>
+
+        <div class="tenants">
+            <h2>Post-launch IPv6 Objects</h2>
+            <div class="tenant-grid" id="ipv6-grid">No post-launch IPv6 expansion has been requested.</div>
+        </div>
         
         <div class="log">
             <h2>Recent Activity</h2>
@@ -354,6 +359,7 @@ key_file=<path to your private keyfile>"></textarea>
         }
         
         async function load() {
+            loadIpv6Status();
             try {
                 const r = await fetch('public/retry.log?t=' + Date.now());
                 const text = await r.text();
@@ -434,7 +440,30 @@ key_file=<path to your private keyfile>"></textarea>
         }
         
         function escapeHtml(s) {
-            return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        async function loadIpv6Status() {
+            const grid = document.getElementById('ipv6-grid');
+            try {
+                const response = await fetch('public/ipv6-status.json?t=' + Date.now());
+                if (response.status === 404) return;
+                if (!response.ok) throw new Error('Status unavailable');
+                const statuses = await response.json();
+                if (!statuses || typeof statuses !== 'object' || Array.isArray(statuses)) throw new Error('Invalid status');
+                const entries = Object.values(statuses).filter(s => s && Number.isInteger(s.requested) && s.requested >= 1 && s.requested <= 32);
+                grid.innerHTML = entries.map(s => `
+                    <div class="tenant-card">
+                        <div class="name">${escapeHtml(s.label || s.instance_id || 'Instance')}</div>
+                        <div class="stat"><span>Requested IPv6 objects</span><span class="num">${s.requested}</span></div>
+                        <div class="stat"><span>Counted object budget</span><span class="num">${Number.isInteger(s.current) && s.current >= 0 ? s.current : 'Unknown'}</span></div>
+                        <div class="stat"><span>Last observation</span><span>${escapeHtml(s.updated_at || 'Unknown')}</span></div>
+                        <div class="stat"><span>Status</span><span>${s.status === 'ready' ? 'Object target reached' : 'Needs local CLI retry or review'}</span></div>
+                    </div>
+                `).join('') || 'No post-launch IPv6 expansion has been requested.';
+            } catch (error) {
+                grid.textContent = 'IPv6 status unavailable. Refresh or check the local expansion command.';
+            }
         }
         
         function updateRuntime() {

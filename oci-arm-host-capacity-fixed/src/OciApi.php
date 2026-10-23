@@ -22,6 +22,13 @@ class OciApi
     private CacheInterface $cache;
     private TooManyRequestsWaiterInterface $waiter;
 
+    private array $responseHeaders = [];
+
+    public function getResponseHeaders(): array
+    {
+        return $this->responseHeaders;
+    }
+
     /**
      * @param OciConfig $config
      * @param string $shape
@@ -235,7 +242,8 @@ class OciApi
         string $baseUrl = '',
         string $method = 'GET',
         ?string $body = null,
-        array $params = []
+        array $params = [],
+        array $requestHeaders = []
     )
     {
         $paramsString = '';
@@ -254,6 +262,16 @@ class OciApi
 
         $headers = $signer->getHeaders($url, $method, $body, 'application/json');
 
+        // CreateIpv6 documents this header for safely replaying an uncertain POST.
+        // Keep the extension narrow: callers cannot override signed/auth headers.
+        if (isset($requestHeaders['opc-retry-token'])) {
+            $token = $requestHeaders['opc-retry-token'];
+            if (!is_string($token) || !preg_match('/^[a-zA-Z0-9_-]{1,64}$/D', $token)) {
+                throw new \InvalidArgumentException('Invalid OCI retry token.');
+            }
+            $headers[] = 'opc-retry-token: ' . $token;
+        }
+
         $curlOptions = [
             CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
@@ -269,7 +287,7 @@ class OciApi
             $curlOptions[CURLOPT_POSTFIELDS] = $body;
         }
 
-        return HttpClient::getResponse($curlOptions);
+        return HttpClient::getResponse($curlOptions, $this->responseHeaders);
     }
 
     public function setWaiter(TooManyRequestsWaiterInterface $waiter): void

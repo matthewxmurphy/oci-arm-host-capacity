@@ -93,8 +93,17 @@ In the current implementation, the launcher requests:
 - one public IPv4 on launch when `network.assign_public_ip` is `true`
 - one initial IPv6 on launch when `network.dual_stack` is `true`
 
-The larger IPv6 target for this project is to support post-launch expansion up to OCI's documented limit of
-32 IPv6 address objects per VNIC. That is a separate step from the base instance launch path.
+After launch, request a total of 1–32 IPv6 address objects on the primary VNIC with the separate command:
+
+```bash
+php scripts/expand-ipv6.php --instance-id ocid1.instance.oc1.REGION.INSTANCE --target 32 --label dual-stack-server
+```
+
+This does not change the instance JSON or launch-time IPv4/IPv6 behavior. The command requires an available
+primary VNIC on an already IPv6-enabled subnet and the PHP helper's configured environment (`--env` can
+select another tenant). Use `--ipv6-subnet-cidr PREFIX` when the subnet has multiple prefixes. It adds only
+the missing objects, retains a private retry journal, and publishes requested versus last-observed counts
+to the live dashboard. Guest OS address configuration is separate. See the README for recovery limits.
 
 ## Adding Custom Tenants
 
