@@ -85,6 +85,17 @@ function cliEnvironment(array $overrides = []): array
     }
     return array_replace($environment, $overrides);
 }
+function cliProcessEnvironment(array $environment): array
+{
+    // proc_open skips keyed empty values; NAME= entries preserve their presence.
+    foreach ($environment as $name => $value) {
+        if ($value === '') {
+            unset($environment[$name]);
+            $environment[] = $name . '=';
+        }
+    }
+    return $environment;
+}
 function cliRun(string $fixture, string $target, bool $fail = false, ?string $stateDir = null): array
 {
     $command = array_merge(cliPhpCommand(), [$fixture . '/scripts/expand-ipv6.php', '--instance-id', 'ocid1.instance.oc1.fixture', '--target', $target,
@@ -92,7 +103,7 @@ function cliRun(string $fixture, string $target, bool $fail = false, ?string $st
     $environment = cliEnvironment(['OCI_REGION' => 'wrong-region', 'OCI_USER_ID' => 'wrong-user', 'OCI_TENANCY_ID' => 'wrong-tenancy',
         'OCI_KEY_FINGERPRINT' => 'wrong-fingerprint', 'OCI_PRIVATE_KEY_FILENAME' => '/wrong-inherited-key', 'IPV6_FIXTURE_CALLS' => $fixture . '/calls.jsonl', 'IPV6_FIXTURE_FAIL' => $fail ? '1' : '',
         'IPV6_TEST_DOTENV_AUTOLOAD' => (string)getenv('IPV6_TEST_DOTENV_AUTOLOAD')]);
-    $process = proc_open($command, [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']], $pipes, $fixture, $environment);
+    $process = proc_open($command, [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']], $pipes, $fixture, cliProcessEnvironment($environment));
     fclose($pipes[0]);
     $output = stream_get_contents($pipes[1]); fclose($pipes[1]);
     $error = stream_get_contents($pipes[2]); fclose($pipes[2]);
@@ -152,7 +163,7 @@ try {
     $address = stream_socket_get_name($socket, false); fclose($socket);
     $web = proc_open(array_merge(cliPhpCommand(), ['-S', $address, '-t', $fixture . '-site']),
         [['file', '/dev/null', 'r'], ['file', $fixture . '/web.log', 'w'], ['file', $fixture . '/web.log', 'a']], $pipes, $fixture,
-        cliEnvironment());
+        cliProcessEnvironment(cliEnvironment()));
     cliCheck(is_resource($web), 'Start loopback web fixture.');
     try {
         $httpCode = 0; $response = '';
