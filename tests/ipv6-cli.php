@@ -9,7 +9,7 @@ mkdir($fixture . '/scripts', 0700, true);
 mkdir($fixture . '/oci-arm-host-capacity-fixed/src', 0700, true);
 mkdir($fixture . '/oci-arm-host-capacity-fixed/vendor', 0700, true);
 copy($root . '/scripts/expand-ipv6.php', $fixture . '/scripts/expand-ipv6.php');
-foreach (['Ipv6Expansion', 'OciConfig'] as $file) copy($root . '/oci-arm-host-capacity-fixed/src/' . $file . '.php', $fixture . '/oci-arm-host-capacity-fixed/src/' . $file . '.php');
+foreach (['Ipv6Expansion', 'Ipv6StatePaths', 'OciConfig'] as $file) copy($root . '/oci-arm-host-capacity-fixed/src/' . $file . '.php', $fixture . '/oci-arm-host-capacity-fixed/src/' . $file . '.php');
 copy(__DIR__ . '/fixtures/ipv6-expansion.json', $fixture . '/inventory.json');
 // Compare only hashes inside the disposable fixture; never write inherited
 // identity or proxy/CA values into its diagnostics.
@@ -77,7 +77,9 @@ function cliEnvironment(array $overrides = []): array
         'PIP_CERT', 'NODE_EXTRA_CA_CERTS', 'GRPC_DEFAULT_SSL_ROOTS_FILE_PATH', 'GIT_SSL_CAINFO', 'GIT_SSL_CAPATH', 'AWS_CA_BUNDLE'];
     $environment = [];
     foreach (getenv() as $name => $value) {
-        if (in_array($name, $keep, true) || stripos($name, 'proxy') !== false || strpos($name, 'CODEX_SANDBOX_') === 0) {
+        if (in_array($name, $keep, true) || strpos($name, 'CODEX_') === 0
+            || strpos($name, 'GRPC_') === 0
+            || preg_match('/proxy|cert|trust|_ca|ssl/i', $name)) {
             $environment[$name] = $value;
         }
     }
